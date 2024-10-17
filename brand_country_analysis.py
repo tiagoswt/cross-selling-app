@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import itertools
+from datetime import datetime
 
 # Set page config
 st.set_page_config(page_title="Brand-Country Analysis Dashboard", layout="wide")
@@ -14,7 +15,7 @@ uploaded_file = st.sidebar.file_uploader(
 
 
 # Load the data
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_data(file):
     if file is not None:
         if file.name.endswith(".csv"):
@@ -48,7 +49,6 @@ if df is not None:
             "Brand Popularity",
             "Country Diversity",
             "Brand Penetration",
-            # "Average Basket Size",
             "Brand Co-occurrence",
             "Brand Exclusivity",
             "Co-occurrence by Brand",
@@ -60,11 +60,19 @@ if df is not None:
         "Select a country", options=available_countries
     )
 
+    # Date filter selection
+    min_date, max_date = df["orderDate"].min(), df["orderDate"].max()
+    start_date, end_date = st.sidebar.date_input(
+        "Select Date Range",
+        [min_date, max_date],
+        min_value=min_date,
+        max_value=max_date,
+    )
+
     # Filter the dataset by selected country (if not "All Countries")
+    df_filtered = df[(df["orderDate"] >= start_date) & (df["orderDate"] <= end_date)]
     if selected_country != "All Countries":
-        df_filtered = df[df["shipCountryCode"] == selected_country]
-    else:
-        df_filtered = df  # Show data for all countries if "All Countries" is selected
+        df_filtered = df_filtered[df_filtered["shipCountryCode"] == selected_country]
 
     # Display filtered data and metrics
     st.subheader(f"Metrics for {selected_country}")
@@ -82,7 +90,6 @@ if df is not None:
         "Brand Popularity": "This analysis shows the most popular brands by counting the number of orders that contain each brand.",
         "Country Diversity": "This analysis shows the diversity of brands in each country, counting how many unique brands are ordered in each region.",
         "Brand Penetration": "This analysis shows how often each brand appears in orders across different countries, expressed as a percentage of total orders.",
-        "Average Basket Size": "This analysis shows the average number of unique brands purchased per order in each country, indicating how many brands customers tend to buy together.",
         "Brand Co-occurrence": "This analysis shows how frequently specific brands are purchased together in the same order, highlighting potential product pairings.",
         "Brand Exclusivity": "This analysis shows how often customers purchase only one brand in their order, indicating brand loyalty or specialization.",
         "Co-occurrence by Brand": "This analysis allows you to select a specific brand and see how often it co-occurs with other brands, either as a percentage or as a total count.",
@@ -91,21 +98,50 @@ if df is not None:
     # Display the explanation for the selected analysis
     st.markdown(f"**Explanation:** {analysis_explanations[analysis]}")
 
+    # Helper function to plot bar charts
+    def plot_bar_chart(data, title, xlabel, ylabel):
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.barplot(x=data.index, y=data.values, ax=ax)
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.tick_params(axis="x", rotation=45)
+        for p in ax.patches:
+            ax.annotate(
+                format(p.get_height(), ".1f"),
+                (p.get_x() + p.get_width() / 2.0, p.get_height()),
+                ha="center",
+                va="center",
+                xytext=(0, 9),
+                textcoords="offset points",
+            )
+        st.pyplot(fig)
+
     # Brand Popularity
     if analysis == "Brand Popularity":
         st.header(f"Brand Popularity in {selected_country}")
         top_n = st.slider("Select top N brands", 5, 20, 10)
+        analysis_type = st.radio(
+            "Choose the type of analysis", ("Total Value", "Percentage")
+        )
 
         brand_popularity = (
             df_filtered.explode("brands")["brands"].value_counts().head(top_n)
         )
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(x=brand_popularity.index, y=brand_popularity.values, ax=ax)
-        ax.set_title(f"Top {top_n} Most Popular Brands in {selected_country}")
-        ax.set_xlabel("Brand")
-        ax.set_ylabel("Number of Orders")
-        ax.tick_params(axis="x", rotation=45)
-        st.pyplot(fig)
+
+        if analysis_type == "Percentage":
+            total_orders = len(df_filtered)
+            brand_popularity = (brand_popularity / total_orders) * 100
+            ylabel = "Percentage of Orders"
+        else:
+            ylabel = "Number of Orders"
+
+        plot_bar_chart(
+            brand_popularity,
+            f"Top {top_n} Most Popular Brands in {selected_country}",
+            "Brand",
+            ylabel,
+        )
 
     # Country Diversity
     if analysis == "Country Diversity":
@@ -119,15 +155,12 @@ if df is not None:
             top_n
         )
 
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(
-            x=country_diversity_sorted.index, y=country_diversity_sorted.values, ax=ax
+        plot_bar_chart(
+            country_diversity_sorted,
+            f"Top {top_n} Countries by Brand Diversity",
+            "Country",
+            "Number of Unique Brands",
         )
-        ax.set_title(f"Top {top_n} Countries by Brand Diversity")
-        ax.set_xlabel("Country")
-        ax.set_ylabel("Number of Unique Brands")
-        ax.tick_params(axis="x", rotation=45)
-        st.pyplot(fig)
 
     # Brand Penetration
     if analysis == "Brand Penetration":
@@ -148,83 +181,88 @@ if df is not None:
         ax.set_ylabel("Country")
         st.pyplot(fig)
 
-    # Average Basket Size
-    if analysis == "Average Basket Size":
-        st.header(f"Average Basket Size in {selected_country}")
-        top_n = st.slider("Select top N countries", 5, 20, 10)
-
-        avg_basket_size = df_filtered.groupby("shipCountryCode")["brands"].apply(
-            lambda x: sum(len(set(brands)) for brands in x) / len(x)
-        )
-        avg_basket_size_sorted = avg_basket_size.sort_values(ascending=False).head(
-            top_n
-        )
-
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(
-            x=avg_basket_size_sorted.index, y=avg_basket_size_sorted.values, ax=ax
-        )
-        ax.set_title(
-            f"Top {top_n} Countries by Average Basket Size in {selected_country}"
-        )
-        ax.set_xlabel("Country")
-        ax.set_ylabel("Average Number of Unique Brands per Order")
-        ax.tick_params(axis="x", rotation=45)
-        st.pyplot(fig)
-
     # Brand Co-occurrence
     if analysis == "Brand Co-occurrence":
         st.header(f"Brand Co-occurrence in {selected_country}")
 
-        # Explode the 'brands' column so each brand in an order gets its own row
         df_exploded = df_filtered.explode("brands")
-
-        # Add a slider to select the top N brands
         top_n = st.slider("Select top N brands", 5, 50, 20)
+        analysis_type = st.radio(
+            "Choose the type of analysis", ("Total Value", "Percentage")
+        )
 
-        # Get the top N brands to limit the size of the co-occurrence matrix
         top_brands = df_exploded["brands"].value_counts().head(top_n).index.tolist()
-
-        # Filter to only orders that include these top brands
         df_top_brands = df_filtered[
             df_filtered["brands"].apply(
                 lambda x: any(brand in top_brands for brand in x)
             )
         ]
 
-        # Initialize a dictionary to hold co-occurrence counts
         co_occurrence_dict = {
             brand: {brand: 0 for brand in top_brands} for brand in top_brands
         }
 
-        # Iterate through each order and compute brand pairs
         for brands_list in df_top_brands["brands"]:
             relevant_brands = [brand for brand in brands_list if brand in top_brands]
             for brand_a, brand_b in itertools.combinations(relevant_brands, 2):
                 co_occurrence_dict[brand_a][brand_b] += 1
                 co_occurrence_dict[brand_b][brand_a] += 1
 
-        # Convert the co-occurrence dictionary to a DataFrame
         co_occurrence_df = pd.DataFrame(co_occurrence_dict)
-
-        # Filter out rows and columns with all zeros (brands with no co-occurrences)
         co_occurrence_df = co_occurrence_df.loc[
             ~(co_occurrence_df == 0).all(axis=1), ~(co_occurrence_df == 0).all(axis=0)
         ]
 
-        # Plot the co-occurrence matrix
+        if analysis_type == "Percentage":
+            total_occurrences = co_occurrence_df.values.sum()
+            co_occurrence_df = (co_occurrence_df / total_occurrences) * 100
+            fmt = ".2f"
+            ylabel = "Percentage of Co-occurrences"
+        else:
+            fmt = "d"
+            ylabel = "Total Co-occurrences"
+
         fig, ax = plt.subplots(figsize=(12, 10))
-        sns.heatmap(co_occurrence_df, cmap="YlGnBu", annot=True, fmt="d", ax=ax)
+        sns.heatmap(co_occurrence_df, cmap="YlGnBu", annot=True, fmt=fmt, ax=ax)
         ax.set_title(f"Brand Co-occurrence (Top {top_n} Brands) in {selected_country}")
         ax.set_xlabel("Brand")
         ax.set_ylabel("Brand")
         st.pyplot(fig)
 
+    # Brand Exclusivity
+    if analysis == "Brand Exclusivity":
+        st.header(f"Brand Exclusivity in {selected_country}")
+        top_n = st.slider("Select top N brands", 5, 20, 10)
+        analysis_type = st.radio(
+            "Choose the type of analysis", ("Total Value", "Percentage")
+        )
+
+        single_brand_orders = df_filtered[df_filtered["brands"].apply(len) == 1]
+        brand_exclusivity = (
+            single_brand_orders["brands"]
+            .apply(lambda x: x[0])
+            .value_counts()
+            .head(top_n)
+        )
+
+        if analysis_type == "Percentage":
+            total_single_brand_orders = len(single_brand_orders)
+            brand_exclusivity = (brand_exclusivity / total_single_brand_orders) * 100
+            ylabel = "Percentage of Single-Brand Orders"
+        else:
+            ylabel = "Total Single-Brand Orders"
+
+        plot_bar_chart(
+            brand_exclusivity,
+            f"Top {top_n} Brands by Exclusivity (Single-Brand Orders) in {selected_country}",
+            "Brand",
+            ylabel,
+        )
+
     # Co-occurrence by Brand
     if analysis == "Co-occurrence by Brand":
         st.header(f"Co-occurrence by Brand in {selected_country}")
 
-        # Filter by specific brand for co-occurrence analysis
         selected_brand = st.selectbox(
             "Select a brand to analyze its co-occurrence with other brands",
             options=df_filtered.explode("brands")["brands"].unique(),
@@ -235,30 +273,25 @@ if df is not None:
             "Choose the type of analysis", ("Percentage", "Total Value")
         )
 
-        # Filter orders that contain the selected brand
         df_filtered_brand = df_filtered[
             df_filtered["brands"].apply(lambda x: selected_brand in x)
         ]
 
-        # Initialize dictionary for co-occurrence counts
         co_occurrence_count = {
             brand: 0
             for brand in df_filtered.explode("brands")["brands"].unique()
             if brand != selected_brand
         }
 
-        # Count co-occurrence of the selected brand with other brands
         for brands_list in df_filtered_brand["brands"]:
             for brand in brands_list:
                 if brand != selected_brand:
                     co_occurrence_count[brand] += 1
 
-        # Filter out brands with zero co-occurrence
         co_occurrence_count = {
             brand: count for brand, count in co_occurrence_count.items() if count > 0
         }
 
-        # Limit the results to top N brands by co-occurrence count
         co_occurrence_df = pd.DataFrame(
             list(co_occurrence_count.items()), columns=["Brand", "Count"]
         ).nlargest(top_n, columns="Count")
@@ -278,38 +311,17 @@ if df is not None:
             y_label = "Total Co-occurrence Count"
             y_values = co_occurrence_df["Count"]
 
-        # Plot the co-occurrence analysis
         fig, ax = plt.subplots(figsize=(12, 6))
         sns.barplot(x=co_occurrence_df["Brand"], y=y_values, ax=ax)
-        ax.set_title(
-            f"Co-occurrence of {selected_brand} with Other Brands in {selected_country}"
-        )
-        ax.set_xlabel("Brand")
-        ax.set_ylabel(y_label)
-        ax.tick_params(axis="x", rotation=45)
-        st.pyplot(fig)
-
-    # Brand Exclusivity
-    if analysis == "Brand Exclusivity":
-        st.header(f"Brand Exclusivity in {selected_country}")
-        top_n = st.slider("Select top N brands", 5, 20, 10)
-
-        single_brand_orders = df_filtered[df_filtered["brands"].apply(len) == 1]
-        brand_exclusivity = (
-            single_brand_orders["brands"]
-            .apply(lambda x: x[0])
-            .value_counts(normalize=True)
-            .head(top_n)
-        )
-
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(x=brand_exclusivity.index, y=brand_exclusivity.values, ax=ax)
-        ax.set_title(
-            f"Top {top_n} Brands by Exclusivity (Single-Brand Orders) in {selected_country}"
-        )
-        ax.set_xlabel("Brand")
-        ax.set_ylabel("Percentage of Single-Brand Orders")
-        ax.tick_params(axis="x", rotation=45)
+        for p in ax.patches:
+            ax.annotate(
+                format(p.get_height(), ".1f"),
+                (p.get_x() + p.get_width() / 2.0, p.get_height()),
+                ha="center",
+                va="center",
+                xytext=(0, 9),
+                textcoords="offset points",
+            )
         st.pyplot(fig)
 
     # Footer and Sidebar explanations
@@ -317,7 +329,7 @@ if df is not None:
         """
     ## How to use this dashboard
 
-    1. Use the dropdown menu to select a country and analysis.
+    1. Use the dropdown menu to select a country, date range, and analysis.
     2. The charts update automatically based on your selections.
     3. Overall metrics for the selected country are shown in the sidebar.
 
