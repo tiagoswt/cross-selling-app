@@ -48,7 +48,7 @@ if df is not None:
             "Brand Popularity",
             "Country Diversity",
             "Brand Penetration",
-            "Average Basket Size",
+            # "Average Basket Size",
             "Brand Co-occurrence",
             "Brand Exclusivity",
             "Co-occurrence by Brand",
