@@ -50,8 +50,8 @@ if df is not None:
             "Brand Penetration",
             "Average Basket Size",
             "Brand Co-occurrence",
+            "Co-occurrence by Brand"
             "Brand Exclusivity",
-            "Co-occurrence by Brand",
         ],
     )
 
