@@ -50,8 +50,8 @@ if df is not None:
             "Brand Penetration",
             "Average Basket Size",
             "Brand Co-occurrence",
-            "Co-occurrence by Brand"
             "Brand Exclusivity",
+            "Co-occurrence by Brand",
         ],
     )
 
@@ -179,8 +179,11 @@ if df is not None:
         # Explode the 'brands' column so each brand in an order gets its own row
         df_exploded = df_filtered.explode("brands")
 
-        # Get the top 20 brands to limit the size of the co-occurrence matrix
-        top_brands = df_exploded["brands"].value_counts().head(20).index.tolist()
+        # Add a slider to select the top N brands
+        top_n = st.slider("Select top N brands", 5, 50, 20)
+
+        # Get the top N brands to limit the size of the co-occurrence matrix
+        top_brands = df_exploded["brands"].value_counts().head(top_n).index.tolist()
 
         # Filter to only orders that include these top brands
         df_top_brands = df_filtered[
@@ -204,10 +207,15 @@ if df is not None:
         # Convert the co-occurrence dictionary to a DataFrame
         co_occurrence_df = pd.DataFrame(co_occurrence_dict)
 
+        # Filter out rows and columns with all zeros (brands with no co-occurrences)
+        co_occurrence_df = co_occurrence_df.loc[
+            ~(co_occurrence_df == 0).all(axis=1), ~(co_occurrence_df == 0).all(axis=0)
+        ]
+
         # Plot the co-occurrence matrix
         fig, ax = plt.subplots(figsize=(12, 10))
         sns.heatmap(co_occurrence_df, cmap="YlGnBu", annot=True, fmt="d", ax=ax)
-        ax.set_title(f"Brand Co-occurrence (Top 20 Brands) in {selected_country}")
+        ax.set_title(f"Brand Co-occurrence (Top {top_n} Brands) in {selected_country}")
         ax.set_xlabel("Brand")
         ax.set_ylabel("Brand")
         st.pyplot(fig)
@@ -217,12 +225,12 @@ if df is not None:
         st.header(f"Co-occurrence by Brand in {selected_country}")
 
         # Filter by specific brand for co-occurrence analysis
-        top_n = st.slider("Select top N brands", 5, 50, 20)
         selected_brand = st.selectbox(
             "Select a brand to analyze its co-occurrence with other brands",
-            options=df_filtered.explode("brands")["brands"].value_counts().head(top_n).index,
+            options=df_filtered.explode("brands")["brands"].unique(),
             index=0,
         )
+        top_n = st.slider("Select top N brands for co-occurrence analysis", 5, 50, 20)
         analysis_type = st.radio(
             "Choose the type of analysis", ("Percentage", "Total Value")
         )
@@ -246,11 +254,14 @@ if df is not None:
                     co_occurrence_count[brand] += 1
 
         # Filter out brands with zero co-occurrence
-        co_occurrence_count = {brand: count for brand, count in co_occurrence_count.items() if count > 0}
+        co_occurrence_count = {
+            brand: count for brand, count in co_occurrence_count.items() if count > 0
+        }
 
+        # Limit the results to top N brands by co-occurrence count
         co_occurrence_df = pd.DataFrame(
             list(co_occurrence_count.items()), columns=["Brand", "Count"]
-        )
+        ).nlargest(top_n, columns="Count")
 
         if analysis_type == "Percentage":
             total_co_occurrences = sum(co_occurrence_count.values())
@@ -318,5 +329,7 @@ if df is not None:
     st.markdown("---")
     st.markdown("Created with Streamlit by Sweetcare")
 else:
-    st.warning("No data available. Please upload a valid CSV or Excel file.", icon=":material/warning:")
-
+    st.warning(
+        "No data available. Please upload a valid CSV or Excel file.",
+        icon=":material/warning:",
+    )
