@@ -37,7 +37,9 @@ df = load_data(uploaded_file)
 
 if df is not None:
     # Get the list of available countries from the data
-    available_countries = df["shipCountryCode"].unique().tolist()
+    available_countries = sorted(
+        df["shipCountryCode"].unique().tolist(), key=lambda x: str(x)
+    )
     available_countries.insert(0, "All Countries")  # Add an option for "All Countries"
 
     st.title("Brand-Country Analysis Dashboard")
@@ -46,11 +48,10 @@ if df is not None:
     analysis = st.sidebar.selectbox(
         "Choose an analysis",
         [
-            "Brand Popularity",
             "Country Diversity",
-            #"Brand Penetration",
-            "Brand Co-occurrence",
+            "Brand Popularity",
             "Brand Exclusivity",
+            "Brand Co-occurrence",
             "Co-occurrence by Brand",
         ],
     )
@@ -162,25 +163,6 @@ if df is not None:
             "Number of Unique Brands",
         )
 
-    # Brand Penetration
-    if analysis == "Brand Penetration":
-        st.header(f"Brand Penetration in {selected_country}")
-
-        brand_penetration = (
-            df_filtered.explode("brands")
-            .groupby("shipCountryCode")["brands"]
-            .value_counts(normalize=True)
-            .unstack()
-            .fillna(0)
-        )
-
-        fig, ax = plt.subplots(figsize=(12, 8))
-        sns.heatmap(brand_penetration, ax=ax, cmap="YlOrRd")
-        ax.set_title(f"Brand Penetration by Country in {selected_country}")
-        ax.set_xlabel("Brand")
-        ax.set_ylabel("Country")
-        st.pyplot(fig)
-
     # Brand Co-occurrence
     if analysis == "Brand Co-occurrence":
         st.header(f"Brand Co-occurrence in {selected_country}")
@@ -246,8 +228,8 @@ if df is not None:
         )
 
         if analysis_type == "Percentage":
-            total_single_brand_orders = len(single_brand_orders)
-            brand_exclusivity = (brand_exclusivity / total_single_brand_orders) * 100
+            total_orders = len(df_filtered)
+            brand_exclusivity = (brand_exclusivity / total_orders) * 100
             ylabel = "Percentage of Single-Brand Orders"
         else:
             ylabel = "Total Single-Brand Orders"
@@ -265,7 +247,9 @@ if df is not None:
 
         selected_brand = st.selectbox(
             "Select a brand to analyze its co-occurrence with other brands",
-            options=df_filtered.explode("brands")["brands"].unique(),
+            options=sorted(
+                df_filtered.explode("brands")["brands"].unique(), key=lambda x: str(x)
+            ),
             index=0,
         )
         top_n = st.slider("Select top N brands for co-occurrence analysis", 5, 50, 20)
@@ -345,3 +329,4 @@ else:
         "No data available. Please upload a valid CSV or Excel file.",
         icon=":material/warning:",
     )
+
