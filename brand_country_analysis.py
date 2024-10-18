@@ -90,7 +90,6 @@ if df is not None:
     analysis_explanations = {
         "Brand Popularity": "This analysis shows the most popular brands by counting the number of orders that contain each brand.",
         "Country Diversity": "This analysis shows the diversity of brands in each country, counting how many unique brands are ordered in each region.",
-        "Brand Penetration": "This analysis shows how often each brand appears in orders across different countries, expressed as a percentage of total orders.",
         "Brand Co-occurrence": "This analysis shows how frequently specific brands are purchased together in the same order, highlighting potential product pairings.",
         "Brand Exclusivity": "This analysis shows how often customers purchase only one brand in their order, indicating brand loyalty or specialization.",
         "Co-occurrence by Brand": "This analysis allows you to select a specific brand and see how often it co-occurs with other brands, either as a percentage or as a total count.",
@@ -329,4 +328,3 @@ else:
         "No data available. Please upload a valid CSV or Excel file.",
         icon=":material/warning:",
     )
-
