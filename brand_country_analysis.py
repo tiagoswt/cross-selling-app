@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
 import itertools
 from datetime import datetime
 
@@ -98,24 +100,17 @@ if df is not None:
     # Display the explanation for the selected analysis
     st.markdown(f"**Explanation:** {analysis_explanations[analysis]}")
 
-    # Helper function to plot bar charts
-    def plot_bar_chart(data, title, xlabel, ylabel):
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(x=data.index, y=data.values, ax=ax)
-        ax.set_title(title)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        ax.tick_params(axis="x", rotation=45)
-        for p in ax.patches:
-            ax.annotate(
-                format(p.get_height(), ".1f"),
-                (p.get_x() + p.get_width() / 2.0, p.get_height()),
-                ha="center",
-                va="center",
-                xytext=(0, 9),
-                textcoords="offset points",
-            )
-        st.pyplot(fig)
+    # Helper function to plot interactive bar charts
+    def plot_interactive_bar_chart(data, title, xlabel, ylabel):
+        fig = px.bar(
+            data,
+            x=data.index,
+            y=data.values,
+            title=title,
+            labels={"x": xlabel, "y": ylabel},
+        )
+        fig.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig)
 
     # Brand Popularity
     if analysis == "Brand Popularity":
@@ -136,7 +131,7 @@ if df is not None:
         else:
             ylabel = "Number of Orders"
 
-        plot_bar_chart(
+        plot_interactive_bar_chart(
             brand_popularity,
             f"Top {top_n} Most Popular Brands in {selected_country}",
             "Brand",
@@ -155,7 +150,7 @@ if df is not None:
             top_n
         )
 
-        plot_bar_chart(
+        plot_interactive_bar_chart(
             country_diversity_sorted,
             f"Top {top_n} Countries by Brand Diversity",
             "Country",
@@ -203,12 +198,15 @@ if df is not None:
             fmt = "d"
             ylabel = "Total Co-occurrences"
 
-        fig, ax = plt.subplots(figsize=(12, 10))
-        sns.heatmap(co_occurrence_df, cmap="YlGnBu", annot=True, fmt=fmt, ax=ax)
-        ax.set_title(f"Brand Co-occurrence (Top {top_n} Brands) in {selected_country}")
-        ax.set_xlabel("Brand")
-        ax.set_ylabel("Brand")
-        st.pyplot(fig)
+        fig = px.imshow(
+            co_occurrence_df,
+            text_auto=fmt,
+            aspect="auto",
+            color_continuous_scale="YlGnBu",
+            title=f"Brand Co-occurrence (Top {top_n} Brands) in {selected_country}",
+        )
+        fig.update_layout(xaxis_title="Brand", yaxis_title="Brand")
+        st.plotly_chart(fig)
 
     # Brand Exclusivity
     if analysis == "Brand Exclusivity":
@@ -233,7 +231,7 @@ if df is not None:
         else:
             ylabel = "Total Single-Brand Orders"
 
-        plot_bar_chart(
+        plot_interactive_bar_chart(
             brand_exclusivity,
             f"Top {top_n} Brands by Exclusivity (Single-Brand Orders) in {selected_country}",
             "Brand",
@@ -294,18 +292,15 @@ if df is not None:
             y_label = "Total Co-occurrence Count"
             y_values = co_occurrence_df["Count"]
 
-        fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(x=co_occurrence_df["Brand"], y=y_values, ax=ax)
-        for p in ax.patches:
-            ax.annotate(
-                format(p.get_height(), ".1f"),
-                (p.get_x() + p.get_width() / 2.0, p.get_height()),
-                ha="center",
-                va="center",
-                xytext=(0, 9),
-                textcoords="offset points",
-            )
-        st.pyplot(fig)
+        fig = px.bar(
+            co_occurrence_df,
+            x="Brand",
+            y=y_values,
+            title=f"Co-occurrence of Brands with {selected_brand} in {selected_country}",
+            labels={"Brand": "Brand", "y": y_label},
+        )
+        fig.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig)
 
     # Footer and Sidebar explanations
     st.sidebar.markdown(
